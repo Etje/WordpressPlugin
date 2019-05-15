@@ -25,6 +25,10 @@ add_action(
         'swp_register_custom_admin_titles');
 add_filter('manage_swp_list_posts_custom_column', 'swp_list_column_data',1,2);
 
+//register ajax actions
+add_action('wp_ajax_nopriv_swp_save_subscription', 'swp_save_subscription'); //regular website visitor
+add_action('wp_ajax_swp_save_subscription', 'swp_save_subscription'); //admin user
+
 
 // Shortcodes
 // register our custom shortcodes
@@ -37,13 +41,19 @@ function swp_register_shortcodes(){
 //return html string for mail capture form
 function swp_form_shortcode( $args, $content=""){
 
-    //setup output variable - the form html
+    //get the list id
+    $list_id = 0; 
+    if( isset($args['id']) ) $list_id = (int)$args['id'];
 
+    //setup output variable - the form html
     $output = '
     
     <div class="swp">
 
-        <form id="swp_form" name="swp_form" class="swp_form" method="post">
+        <form id="swp_form" name="swp_form" class="swp_form" method="post" action="/wp-admin/admin-ajax.php?action=swp_save_subscription">
+            
+            <input type="hidden" name="swp_list" value="' . $list_id . '">
+
             <p class="swp-input-container">
 
                 <label>Volledige naam: </label><br />
@@ -69,7 +79,7 @@ function swp_form_shortcode( $args, $content=""){
             //completing our form with a submit
             $output .= '<p class="swp-input-container">
         
-                <input type="submit" name="swp_submit" value="verzend dit form">
+                <input type="submit" name="swp_submit" value="Meld me aan!">
         
             <p>
 
@@ -153,8 +163,9 @@ function swp_list_column_heading( $columns ){
 
     //creating custom header data
     $columns = array(
-        'cb'=>'<input type="chechbox" />',
-        'title'=>__('List Name')
+        'cb'        =>'<input type="chechbox" />',
+        'title'     =>__('List Name'),
+        'shortcode' =>__('Shortcode')
     );
 
     //returning new columns
@@ -168,11 +179,8 @@ function swp_list_column_data( $column, $post_id ){
 
     switch($column){
 
-        case 'example': 
-            //get custom data
-            // $fname = get_field('swp_fname', $post_id);
-            // $lname = get_field('swp_lname', $post_id);
-            // $output .= $fname . ' ' . $lname;
+        case 'shortcode': 
+            $output .= '[swp_form id="' . $post_id . '"]';
             break; 
 
     }
@@ -180,5 +188,257 @@ function swp_list_column_data( $column, $post_id ){
     //echo the output
     echo $output;
 }
+
+//Actions
+//save subscription data to a new subscriber
+function swp_save_subscription(){
+
+    $result = array(
+        'status'    => 0,
+        'message'   => 'Aanmelding is mislukt. '
+    );
+
+    $errors = array();
+
+    try {
+        $list_id = (int)$_POST['swp_list'];
+
+        $subscriber_data = array(
+            'fname' => esc_attr($_POST['swp_fname']),
+            'lname' => esc_attr($_POST['swp_lname']),
+            'email' => esc_attr($_POST['swp_email'])
+        );
+
+        $subscriber_id = swp_save_subscriber($subscriber_data);
+
+        if( $subscriber_id ):
+
+            if(swp_subscriber_has_subscription( $subscriber_id, $list_id ) ):
+
+                $list = get_post($list_id);
+
+                $result['message'] .= esc_attr($subscriber_data['email'] . ' is al in gebruik door ' . $list->post_title .'.');
+
+                else:
+
+                $subscription_saved = swp_add_subscription( $subscriber_id, $list_id );
+
+                if( $subscription_saved ):
+                    $result['status'] = 1;
+                    $result['message'] = 'aanmelding opgeslagen';
+                endif; 
+
+            endif; 
+
+        endif; 
+
+    } catch( Exception $e ) {
+
+    }
+
+    //return result as JSON
+    swp_return_json($result);
+
+} 
+
+function swp_save_subscriber($subscriber_data){
+
+    //setup default describer_id
+    $subscriber_id = 0; 
+
+    try {
+        $subscriber_id = swp_get_subscriber_id( $subscriber_data['email'] );
+
+        if( !$subscriber_id ):
+
+            $subscriber_id = wp_insert_post(
+                array(
+                    'post_type'     => 'swp_subscriber',
+                    'post_title'    => $subscriber_data['fname'] . ' ' . $subscriber_data['lname'],
+                    'post_status'   => 'publish'
+                ), 
+                true
+            );
+
+        endif; 
+
+        //add / update custom data
+        update_field(swp_get_acf_key('swp_fname'), $subscriber_data['fname'], $subscriber_id);
+        update_field(swp_get_acf_key('swp_lname'), $subscriber_data['lname'], $subscriber_id);
+        update_field(swp_get_acf_key('swp_email'), $subscriber_data['email'], $subscriber_id);
+
+    } catch( Exception $e ) {
+
+    }
+
+    //reset the wp query
+    wp_reset_query();
+
+    //return subscriber_id
+    return $subscriber_id;
+}
+
+function swp_add_subscription($subscriber_id, $list_id){
+
+    $subscription_saved = false; 
+    if(!swp_subscriber_has_subscription($subscriber_id, $list_id)) :
+
+        $subscriptions = swp_get_subscriptions($subscriber_id);
+        $subscriptions[] = $list_id;
+
+        update_field(swp_get_acf_key('swp_subscriptions'), $subscriptions, $subscriber_id);
+
+        $subscription_saved = true;
+
+    endif; 
+
+    return $subscription_saved;
+
+}
+
+
+//Helpers
+
+function swp_get_acf_key($field_name){
+
+    $field_key = $field_name; 
+
+    switch( $field_name ) {
+        case 'swp_fname':
+            $field_key = 'field_5cdbc481a506a';
+        break; 
+        case 'swp_lname':
+            $field_key = 'field_5cdbc4aca506b';
+        break; 
+        case 'swp_email':
+            $field_key = 'field_5cdbc4c0a506c';
+        break; 
+        case 'swp_subscriptions':
+            $field_key = 'field_5cdbc4e9a506d';
+        break; 
+            
+    }
+
+    return $field_key;
+
+}
+
+function swp_get_subscriber_data($subscriber_id){
+
+    $subscriber_data = array();
+
+    $subscriber = get_post( $subscriber_id );
+
+    if( isset($subscriber->post_type) && $subscriber->post_type == 'swp_subscriber' ):
+
+        $fname = get_field( swp_get_acf_key('swp_fname'), $subscriber_id);
+        $lname = get_field( swp_get_acf_key('swp_lname'), $subscriber_id);
+        $email = get_field( swp_get_acf_key('swp_email'), $subscriber_id);
+
+        $subscriber_data = array(
+            'name'          => $fname . ' ' . $lname,
+            'fname'         => $fname,
+            'lname'         => $lname,
+            'email'         => $email,
+            'subscriptions' => swp_get_subscriptions( $subscriber_id )
+        );
+
+    endif;
+}
+
+function swp_subscriber_has_subscription( $subscriber_id, $list_id ){
+
+    //setup default return value
+    $has_subscription = false; 
+
+    //get subscriber
+    $subscriber = get_post($subscriber_id);
+
+    //get subscriptions
+    $subscriptions = swp_get_subscriptions( $subscriber_id );
+
+    if( in_array($list_id, $subscriptions) ): 
+        $has_subscription = true;
+
+    else :
+
+    endif; 
+    
+    return $has_subscription;
+}
+
+function swp_get_subscriber_id($email){
+
+    $subscriber_id = 0;
+
+    try {
+        $subscriber_query = new WP_Query(
+            array(
+                'post_type'         =>  'swp_subscriber',
+                'posts_per_page'    =>  1,
+                'meta_key'          => 'swp_email',
+                'meta_query'        => array(
+                    array(
+                        'key'       => 'swp_email',
+                        'value'     => $email,
+                        'compare'   => '='
+                    ),
+                ),
+            )
+        );
+
+        if($subscriber_query->have_posts() ):
+
+            $subscriber_query->the_post();
+            $subscriber_id = get_the_ID();
+
+        endif;
+
+    } catch( Exception $e ){
+
+    }
+
+    //reset wordpress query
+    wp_reset_query();
+
+    return (int)$subscriber_id;
+
+}
+
+function swp_get_subscriptions($subscriber_id){
+
+    $subscriptions = array();
+
+    $lists = get_field(swp_get_acf_key('swp_subscriptions'), $subscriber_id);
+
+    if($lists): 
+
+        if(is_array($list) && count($lists) ):
+
+            foreach($lists as &$list):
+                $subscriptions[]= (int)$list->ID;
+            endforeach;
+
+        elseif( is_numeric($lists) ) :
+            $subscriptions[]= $lists;
+        endif; 
+
+    endif; 
+
+    return (array)$subscriptions;
+
+}
+
+function swp_return_json($php_array){
+
+    $json_result = json_encode($php_array);
+
+    die($json_result);
+
+    exit;
+
+}
+
+
 
 ?>
