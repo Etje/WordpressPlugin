@@ -195,8 +195,12 @@ function swp_save_subscription(){
 
     $result = array(
         'status'    => 0,
-        'message'   => 'Aanmelding is mislukt. '
+        'message'   => 'Aanmelding is mislukt. ',
+        'error'     => '',
+        'errors'    => array()
     );
+
+
 
     $errors = array();
 
@@ -209,28 +213,50 @@ function swp_save_subscription(){
             'email' => esc_attr($_POST['swp_email'])
         );
 
+        //setup errors array
+        $errors = array();
+
+        if(!strlen($subscriber_data['fname']) ) $errors['fname'] = 'Voornaam dient te worden ingevuld';
+        if(!strlen($subscriber_data['email']) ) $errors['email'] = 'email dient te worden ingevuld';
+        if(strlen($subscriber_data['email']) && !is_email( $subscriber_data['email'] ) ) $errors['email'] = 'Emailadres moet kloppend zijn';
+
+        if(count($errors)):
+
+            $result['error']    = 'Sommige velden zijn niet/ of niet correct ingevuld';
+            $result['errors']   = $errors;
+
+        else :
+        //Als er geen errors zijn
+
         $subscriber_id = swp_save_subscriber($subscriber_data);
 
-        if( $subscriber_id ):
+            if( $subscriber_id ):
 
-            if(swp_subscriber_has_subscription( $subscriber_id, $list_id ) ):
+                if(swp_subscriber_has_subscription( $subscriber_id, $list_id ) ):
 
-                $list = get_post($list_id);
+                    $list = get_post($list_id);
 
-                $result['message'] .= esc_attr($subscriber_data['email'] . ' is al in gebruik door ' . $list->post_title .'.');
+                    $result['error'] = esc_attr($subscriber_data['email'] . ' is al in gebruik door ' . $list->post_title .'.');
 
-                else:
+                    else:
 
-                $subscription_saved = swp_add_subscription( $subscriber_id, $list_id );
+                    $subscription_saved = swp_add_subscription( $subscriber_id, $list_id );
 
-                if( $subscription_saved ):
-                    $result['status'] = 1;
-                    $result['message'] = 'aanmelding opgeslagen';
+                    if( $subscription_saved ):
+                        $result['status'] = 1;
+                        $result['message'] = 'aanmelding opgeslagen';
+
+                    else: 
+                        // return detailed error
+                        $result['error'] = 'kan de aanmelding niet voltooien.';
+                    
+                    endif;
+
                 endif; 
 
             endif; 
 
-        endif; 
+        endif;
 
     } catch( Exception $e ) {
 
@@ -247,6 +273,7 @@ function swp_save_subscriber($subscriber_data){
     $subscriber_id = 0; 
 
     try {
+
         $subscriber_id = swp_get_subscriber_id( $subscriber_data['email'] );
 
         if( !$subscriber_id ):
@@ -271,9 +298,6 @@ function swp_save_subscriber($subscriber_data){
 
     }
 
-    //reset the wp query
-    wp_reset_query();
-
     //return subscriber_id
     return $subscriber_id;
 }
@@ -281,7 +305,8 @@ function swp_save_subscriber($subscriber_data){
 function swp_add_subscription($subscriber_id, $list_id){
 
     $subscription_saved = false; 
-    if(!swp_subscriber_has_subscription($subscriber_id, $list_id)) :
+
+    if( !swp_subscriber_has_subscription( $subscriber_id, $list_id ) ) :
 
         $subscriptions = swp_get_subscriptions($subscriber_id);
         $subscriptions[] = $list_id;
@@ -333,17 +358,18 @@ function swp_get_subscriber_data($subscriber_id){
 
         $fname = get_field( swp_get_acf_key('swp_fname'), $subscriber_id);
         $lname = get_field( swp_get_acf_key('swp_lname'), $subscriber_id);
-        $email = get_field( swp_get_acf_key('swp_email'), $subscriber_id);
 
         $subscriber_data = array(
             'name'          => $fname . ' ' . $lname,
             'fname'         => $fname,
             'lname'         => $lname,
-            'email'         => $email,
+            'email'         => get_field( swp_get_acf_key('swp_email'), $subscriber_id),
             'subscriptions' => swp_get_subscriptions( $subscriber_id )
         );
 
     endif;
+
+    return $subscriber_data;
 }
 
 function swp_subscriber_has_subscription( $subscriber_id, $list_id ){
@@ -359,7 +385,6 @@ function swp_subscriber_has_subscription( $subscriber_id, $list_id ){
 
     if( in_array($list_id, $subscriptions) ): 
         $has_subscription = true;
-
     else :
 
     endif; 
@@ -367,7 +392,7 @@ function swp_subscriber_has_subscription( $subscriber_id, $list_id ){
     return $has_subscription;
 }
 
-function swp_get_subscriber_id($email){
+function swp_get_subscriber_id( $email ){
 
     $subscriber_id = 0;
 
@@ -376,12 +401,12 @@ function swp_get_subscriber_id($email){
             array(
                 'post_type'         =>  'swp_subscriber',
                 'posts_per_page'    =>  1,
-                'meta_key'          => 'swp_email',
+                'meta_key'          =>  'swp_email',
                 'meta_query'        => array(
                     array(
                         'key'       => 'swp_email',
                         'value'     => $email,
-                        'compare'   => '='
+                        'compare'   => '=',
                     ),
                 ),
             )
@@ -413,7 +438,7 @@ function swp_get_subscriptions($subscriber_id){
 
     if($lists): 
 
-        if(is_array($list) && count($lists) ):
+        if(is_array($lists) && count($lists) ):
 
             foreach($lists as &$list):
                 $subscriptions[]= (int)$list->ID;
