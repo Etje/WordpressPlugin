@@ -29,6 +29,8 @@ add_filter('manage_swp_list_posts_custom_column', 'swp_list_column_data',1,2);
 add_action('wp_ajax_nopriv_swp_save_subscription', 'swp_save_subscription'); //regular website visitor
 add_action('wp_ajax_swp_save_subscription', 'swp_save_subscription'); //admin user
 
+add_action('wp_enqueue_scripts', 'swp_public_scripts');
+
 
 // Shortcodes
 // register our custom shortcodes
@@ -60,14 +62,14 @@ function swp_form_shortcode( $args, $content=""){
                 <input type="text" name="swp_fname" placeholder="Voornaam">
                 <input type="text" name="swp_lname" placeholder="Achternaam">
             
-            <p>
+            </p>
 
             <p class="swp-input-container">
         
                 <label>Email:</label><br />
                 <input type="email" name="swp_email" placeholder="ex. example@hotmail.nl">
         
-            <p';
+            </p>';
 
             //Including content in our form html if content is passed into the function
             if( strlen($content) > 0):
@@ -81,7 +83,7 @@ function swp_form_shortcode( $args, $content=""){
         
                 <input type="submit" name="swp_submit" value="Meld me aan!">
         
-            <p>
+            </p>
 
         </form>
 
@@ -462,6 +464,18 @@ function swp_return_json($php_array){
 
     exit;
 
+}
+
+//External scripts
+
+function swp_public_scripts(){
+  
+    	// register scripts with WordPress's internal library
+	wp_register_script('snappy-wordpress-plugin-js-public', plugins_url('/js/public/snappy-wordpress-plugin.js',__FILE__), array('jquery'),'',true);
+	
+	// add to que of scripts that get loaded into every page
+	wp_enqueue_script('snappy-wordpress-plugin-js-public');
+    
 }
 
 
