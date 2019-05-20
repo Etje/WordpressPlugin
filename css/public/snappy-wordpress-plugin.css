@@ -1,0 +1,19 @@
+#swp_form div:first-of-type {
+    margin-bottom: 10px;
+}
+
+#swp_form div:first-of-type input {
+    width: 50%; 
+}
+
+#swp_form div:first-of-type input:first-of-type {
+    float: left; 
+}
+
+#swp_form div:nth-child(4){
+    margin-top: 15px;
+}
+
+.swp-title {
+    margin-bottom: 25px;
+}

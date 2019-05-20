@@ -5,9 +5,9 @@ jQuery(document).ready(function($){
 	var wpajax_url = document.location.protocol + '//' + document.location.host + '/wp-admin/admin-ajax.php';
 	
 	// email capture action url
-	var email_capture_url = wpajax_url += '?action=slb_save_subscription';
+	var email_capture_url = wpajax_url += '?action=swp_save_subscription';
 	
-	$('form.slb-form').bind('submit',function(){
+	$('form.swp_form').bind('submit',function(){
 		
 		// get the jquery form object
 		$form = $(this);

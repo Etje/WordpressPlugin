@@ -12,6 +12,9 @@ License URI: https://www.gnu.org/licenses/licenses.nl.html
 Text Domain: Snappy-Wordpress-plugin
 */
 
+define('pathJS', plugins_url() . '/snappy-list-plugin/js/public'); 
+define('pathCSS', plugins_url() . '/snappy-list-plugin/css/public'); 
+
 // Hooks
 // register shortcode in init function
 add_action('init', 'swp_register_shortcodes');
@@ -29,8 +32,13 @@ add_filter('manage_swp_list_posts_custom_column', 'swp_list_column_data',1,2);
 add_action('wp_ajax_nopriv_swp_save_subscription', 'swp_save_subscription'); //regular website visitor
 add_action('wp_ajax_swp_save_subscription', 'swp_save_subscription'); //admin user
 
-add_action('wp_enqueue_scripts', 'swp_public_scripts');
+add_action( 'wp_enqueue_scripts', 'my_swp_custom_scripts' );
 
+add_filter( 'acf/settings/path', 'slp_acf_settings_path' );
+add_filter( 'acf/settings/dir', 'slp_acf_settings_dir' );
+add_filter( 'acf/settings/show_admin', 'slp_acf_show_admin' );
+
+if(!defined('ACF_LITE')) define('ACF_LITE', true); 
 
 // Shortcodes
 // register our custom shortcodes
@@ -47,6 +55,9 @@ function swp_form_shortcode( $args, $content=""){
     $list_id = 0; 
     if( isset($args['id']) ) $list_id = (int)$args['id'];
 
+    $title = ''; 
+    if( isset($args['title']) ) $title = (string)$args['title'];
+
     //setup output variable - the form html
     $output = '
     
@@ -54,22 +65,28 @@ function swp_form_shortcode( $args, $content=""){
 
         <form id="swp_form" name="swp_form" class="swp_form" method="post" action="/wp-admin/admin-ajax.php?action=swp_save_subscription">
             
-            <input type="hidden" name="swp_list" value="' . $list_id . '">
+            <input type="hidden" name="swp_list" value="' . $list_id . '">';
 
-            <p class="swp-input-container">
+            if(strlen($title)): 
+
+                $output .= '<h3 class="swp-title">' . $title . '</h3>';
+
+            endif; 
+
+            $output .= '<div class="swp-input-container">
 
                 <label>Volledige naam: </label><br />
                 <input type="text" name="swp_fname" placeholder="Voornaam">
                 <input type="text" name="swp_lname" placeholder="Achternaam">
             
-            </p>
+            </div>
 
-            <p class="swp-input-container">
+            <div class="swp-input-container">
         
                 <label>Email:</label><br />
-                <input type="email" name="swp_email" placeholder="ex. example@hotmail.nl">
-        
-            </p>';
+                <input type="email" name="swp_email" placeholder="ex. example@hotmail.nl">   
+            </div>';
+
 
             //Including content in our form html if content is passed into the function
             if( strlen($content) > 0):
@@ -79,11 +96,11 @@ function swp_form_shortcode( $args, $content=""){
             endif; 
 
             //completing our form with a submit
-            $output .= '<p class="swp-input-container">
+            $output .= '<div class="swp-input-container">
         
                 <input type="submit" name="swp_submit" value="Meld me aan!">
         
-            </p>
+            </div>
 
         </form>
 
@@ -468,16 +485,39 @@ function swp_return_json($php_array){
 
 //External scripts
 
-function swp_public_scripts(){
-  
-    	// register scripts with WordPress's internal library
-	wp_register_script('snappy-wordpress-plugin-js-public', plugins_url('/js/public/snappy-wordpress-plugin.js',__FILE__), array('jquery'),'',true);
-	
+include_once(plugin_dir_path(__FILE__) . 'lib/advanced-custom-fields/acf.php' );
+
+function my_swp_custom_scripts(){
+ 
+
 	// add to que of scripts that get loaded into every page
-	wp_enqueue_script('snappy-wordpress-plugin-js-public');
+    wp_register_script('snappy-wordpress-plugin-js-public', constant('pathJS') . '/snappy-wordpress-plugin.js', array('jquery'), '', true );
+    wp_register_style('snappy-wordpress-plugin-css-public', constant('pathCSS') . '/snappy-wordpress-plugin.css' );
+
+    //add to que of scripts
+    wp_enqueue_script('snappy-wordpress-plugin-js-public');
+    wp_enqueue_style('snappy-wordpress-plugin-css-public');
     
 }
 
+//functions for external scripts
+
+function slp_acf_settings_path($path){
+    $path = plugin_dir_path( __FILE__ ) . '/lib/advanced-custom-fields/';
+    return $path;
+}
+
+function slp_acf_settings_dir($dir){
+    $dir = plugin_dir_url( __FILE__ ) . '/lib/advanced-custom-fields/';
+    return $dir;
+}
+
+function slp_acf_show_admin($admin){
+    $admin = plugin_dir_url( __FILE__ ) . '/lib/advanced-custom-fields/';
+    return $admin;
+}
+
+include_once(plugin_dir_path( __FILE__ ) . 'cpt/slp-subscriber.php');
 
 
 ?>
