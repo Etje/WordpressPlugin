@@ -62,8 +62,8 @@ function swp_form_shortcode( $args, $content=""){
     $output = '
     
     <div class="swp">
-
-        <form id="swp_form" name="swp_form" class="swp_form" method="post" action="/wp-admin/admin-ajax.php?action=swp_save_subscription">
+    
+    <form id="swp_form" name="swp_form" class="swp_form" method="post" action="/wp-admin/admin-ajax.php?action=swp_save_subscription">
             
             <input type="hidden" name="swp_list" value="' . $list_id . '">';
 
